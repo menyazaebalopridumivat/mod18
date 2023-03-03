@@ -1,0 +1,51 @@
+import requests
+import json
+import configparser
+import telebot
+TOKEN = "5995006870:AAEnbOEzqqH4zrO_wcuCkDD1Q7yyD9opDkY"
+class APIException(Exception):
+    pass
+
+class ExchangeRate:
+    @staticmethod
+    def get_price(base, quote, amount):
+        try:
+            base = base.upper()
+            quote = quote.upper()
+            response = requests.get(f"https://api.exchangerate-api.com/v4/latest/{base}")
+            data = json.loads(response.text)
+            if quote in data["rates"]:
+                return data["rates"][quote] * amount
+            else:
+                raise APIException(f"Invalid currency: {quote}")
+        except ValueError:
+            raise APIException("Invalid amount")
+
+config = configparser.ConfigParser()
+config.read("config.ini")
+
+bot = telebot.TeleBot("5995006870:AAEnbOEzqqH4zrO_wcuCkDD1Q7yyD9opDkY")
+
+@bot.message_handler(commands=['start', 'help'])
+def send_welcome(message):
+    bot.reply_to(message, "Чтобы узнать курс валюты, отправьте сообщение в следующем формате:\n<валюта, чтобы узнать цену> <валюта, чтобы узнать цену в> <сумма>\nНапример: USD RUB 10")
+
+@bot.message_handler(commands=['values'])
+def send_values(message):
+    bot.reply_to(message, "Available currencies: USD, EUR, RUB")
+
+@bot.message_handler(func=lambda message: True)
+def get_price(message):
+    try:
+        values = message.text.split(" ")
+        if len(values) != 3:
+            raise APIException("Invalid input")
+        base = values[0]
+        quote = values[1]
+        amount = float(values[2])
+        result = ExchangeRate.get_price(base, quote, amount)
+        bot.reply_to(message, f"{amount} {base} = {result} {quote}")
+    except APIException as e:
+        bot.reply_to(message, f"Error: {e}")
+
+bot.polling()
